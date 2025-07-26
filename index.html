@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🔔 TIFFY Claim Reminder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: black url('https://tiffyai.github.io/Blue-Key-Claim/Reward3.jpg') no-repeat center center fixed;
+      background-size: cover;
+      font-family: 'Orbitron', sans-serif;
+      color: white;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    h1 {
+      font-size: 30px;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff, 0 0 30px #ff00ff;
+    }
+
+    #notifyBtn {
+      padding: 20px 30px;
+      font-size: 20px;
+      background: radial-gradient(circle, #00ffff, #ff00ff);
+      border: 2px solid white;
+      border-radius: 15px;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 0 20px #00ffff, 0 0 40px #ff00ff;
+      transition: transform 0.3s ease;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    #status {
+      margin-top: 20px;
+      color: #00ffc3;
+      font-size: 16px;
+      text-shadow: 0 0 5px #00ffff;
+    }
+
+    #help-notification {
+      margin-top: 10px;
+      color: #ff00aa;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔑 Activate 24h Claim Reminder</h1>
+  <button id="notifyBtn">🔔 Turn On Alerts</button>
+  <div id="status"></div>
+  <div id="help-notification">📱 To receive reminders, enable notifications in your browser settings.</div>
+
+  <script>
+    let swReg;
+
+    const notifyBtn = document.getElementById('notifyBtn');
+    const statusEl = document.getElementById('status');
+    const helpNote = document.getElementById('help-notification');
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        console.log('Service Worker registered');
+        swReg = reg;
+      }).catch(err => console.error('SW registration failed:', err));
+    }
+
+    notifyBtn.onclick = async () => {
+      if (!('Notification' in window)) {
+        statusEl.textContent = "❌ Notifications not supported on this device.";
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+
+      if (permission === "granted") {
+        statusEl.textContent = "✅ Notifications activated! TiffyAI will remind you when your next claim is ready.";
+        helpNote.style.display = "none";
+        startClaimReminderLoop();
+      } else {
+        statusEl.textContent = "🔕 Notifications are not allowed.";
+        helpNote.style.display = "block";
+      }
+    };
+
+    function startClaimReminderLoop() {
+      checkAndNotify(); // first run
+
+      setInterval(() => {
+        checkAndNotify();
+      }, 60000); // check every minute
+    }
+
+    function checkAndNotify() {
+      const nextClaim = parseInt(localStorage.getItem('nextClaim')) || 0;
+      const now = Date.now();
+
+      if (now >= nextClaim) {
+        const blueKeys = parseInt(localStorage.getItem('tiffyBlueKeys') || "0");
+
+        if (swReg && Notification.permission === "granted") {
+          const options = {
+            body: blueKeys > 0
+              ? `You have ${blueKeys} Blue Key${blueKeys !== 1 ? "s" : ""}! Claim now! 💎`
+              : "Your 24h claim is ready! Tap to unlock your next Blue Key.",
+            icon: "https://tiffyai.github.io/TIFF.png",
+            tag: "tiffy-claim-reminder"
+          };
+          swReg.showNotification("🔵 TiffyAI Reminder", options);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
