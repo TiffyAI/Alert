@@ -68,7 +68,6 @@
   <audio id="tiffySound" src="https://tiffyai.github.io/Stamp/notification.wav" preload="auto"></audio>
 
   <script>
-    let swReg;
     const notifyBtn = document.getElementById('notifyBtn');
     const statusEl = document.getElementById('status');
     const helpEl = document.getElementById('help');
@@ -76,59 +75,48 @@
 
     // Register Service Worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => navigator.serviceWorker.ready)
-        .then((reg) => {
-          swReg = reg;
-          console.log("✅ Service Worker ready");
-        });
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        console.log("✅ Service Worker registered");
+
+        // Refresh to activate immediately
+        if (!navigator.serviceWorker.controller) {
+          location.reload();
+        }
+      });
     }
 
     notifyBtn.onclick = async () => {
-      console.log("🔍 Notification.permission =", Notification.permission);
-
+      console.log("🔍 Notification.permission:", Notification.permission);
       if (!("Notification" in window)) {
-        statusEl.innerText = "❌ Notifications are not supported by this browser.";
+        statusEl.innerText = "❌ This browser doesn't support notifications.";
         helpEl.style.display = 'block';
         return;
       }
 
-      // Already granted
       if (Notification.permission === "granted") {
         activateTiffy();
         return;
       }
 
-      // Explicitly denied
       if (Notification.permission === "denied") {
-        statusEl.innerText = "❌ Notifications are blocked in your browser settings.";
+        statusEl.innerText = "❌ Notifications are blocked. Check your browser settings.";
         helpEl.style.display = 'block';
         return;
       }
 
-      // Request if permission is default
-      try {
-        const permission = await Notification.requestPermission();
-        console.log("🛎️ Permission requested:", permission);
-
-        if (permission === "granted") {
-          activateTiffy();
-        } else {
-          statusEl.innerText = "🔕 Notifications are disabled. You won't get claim alerts.";
-          helpEl.style.display = 'block';
-        }
-      } catch (err) {
-        statusEl.innerText = "⚠️ Something went wrong while requesting permission.";
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        activateTiffy();
+      } else {
+        statusEl.innerText = "🔕 Notifications were not enabled.";
         helpEl.style.display = 'block';
-        console.error("Permission error:", err);
       }
     };
 
     function activateTiffy() {
-      statusEl.innerText = "✅ TiffyAI notifications activated! Watch for key drops.";
+      statusEl.innerText = "✅ TiffyAI alerts enabled. You’ll get notified!";
       helpEl.style.display = 'none';
-
-      tiffySound.play().catch(err => console.log("⚠️ Sound blocked:", err));
+      tiffySound.play().catch(err => console.warn("🔇 Sound blocked:", err));
       startClaimLoop();
 
       setTimeout(() => {
@@ -138,32 +126,36 @@
 
     function startClaimLoop() {
       checkAndNotify();
-      setInterval(checkAndNotify, 600000); // Every 10 mins
+      setInterval(checkAndNotify, 600000); // 10 mins
     }
 
     async function checkAndNotify() {
-      const now = Date.now();
-      const nextClaim = parseInt(localStorage.getItem('nextClaim')) || 0;
       const blueKeys = parseInt(localStorage.getItem('tiffyBlueKeys') || '0');
+      const nextClaim = parseInt(localStorage.getItem('nextClaim')) || 0;
+      const now = Date.now();
 
       if (now >= nextClaim && Notification.permission === "granted") {
-        const tiffyPrice = await fetchLocalPrice();
+        const { price, trend } = await fetchLocalPrice();
         let message = "";
 
         if (blueKeys >= 9) {
-          message = `🚀 Tiffy is ${tiffyPrice.trend} at $${tiffyPrice.price}. You have ${blueKeys} Blue Keys! Unlock or convert to Gold!`;
+          message = `🚀 Tiffy is ${trend} at $${price}. You have ${blueKeys} Blue Keys! Unlock or convert to Gold!`;
         } else if (blueKeys > 0) {
-          message = `🔥 Tiffy is ${tiffyPrice.trend} at $${tiffyPrice.price}. You're at ${blueKeys} Blue Keys. Almost there!`;
+          message = `🔥 You're at ${blueKeys} Blue Keys. Tiffy is ${trend} at $${price}. Almost there!`;
         } else {
-          message = `🎁 Claim your FREE Blue Key now! Tiffy is ${tiffyPrice.trend} at $${tiffyPrice.price}. Rewards await...`;
+          message = `🎁 Claim your FREE Blue Key now! Tiffy is ${trend} at $${price}. Rewards await...`;
         }
 
-        navigator.serviceWorker.controller?.postMessage({
-          type: "notify",
-          title: "🔵 TiffyAI Claim Reminder",
-          message,
-          url: "/BLUE-KEY"
-        });
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "notify",
+            title: "🔵 TiffyAI Claim Reminder",
+            message,
+            url: "/BLUE-KEY"
+          });
+        } else {
+          console.warn("⚠️ No service worker controller active.");
+        }
       }
     }
 
@@ -181,10 +173,10 @@
       }
     }
 
-    // Optional: Listen for notification click
+    // Handle notification click (optional)
     navigator.serviceWorker?.addEventListener("message", event => {
       if (event.data?.type === 'open') {
-        window.open("/BLUE-KEY", "_blank");
+        window.open(event.data.url || "/BLUE-KEY", "_blank");
       }
     });
   </script>
