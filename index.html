@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🔔 TIFFY Claim Reminder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: black url('https://tiffyai.github.io/Blue-Key-Claim/Reward3.jpg') no-repeat center center fixed;
+      background-size: cover;
+      font-family: 'Orbitron', sans-serif;
+      color: white;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff, 0 0 30px #ff00ff;
+    }
+
+    #notifyBtn {
+      padding: 20px 30px;
+      font-size: 20px;
+      background: radial-gradient(circle, #00ffff, #ff00ff);
+      border: 2px solid white;
+      border-radius: 15px;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 0 20px #00ffff, 0 0 40px #ff00ff;
+      transition: transform 0.3s ease;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    #status, #help {
+      margin-top: 20px;
+      font-size: 15px;
+      text-shadow: 0 0 5px #00ffff;
+    }
+
+    #help {
+      color: #ff00aa;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1> 🔑 Get Ready to Unlock Your TiffyAI Web3 Rewards!</h1>
+  <button id="notifyBtn">🔔 Collect My Blue Key</button>
+  <div id="status"></div>
+  <div id="help">⚠️ Please enable notifications in your browser settings.</div>
+
+  <audio id="tiffySound" src="https://tiffyai.github.io/Stamp/notification.wav" preload="auto"></audio>
+
+  <script>
+    let swReg;
+    const notifyBtn = document.getElementById('notifyBtn');
+    const statusEl = document.getElementById('status');
+    const helpEl = document.getElementById('help');
+    const tiffySound = document.getElementById('tiffySound');
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(() => navigator.serviceWorker.ready)
+        .then((reg) => {
+          swReg = reg;
+          console.log("✅ Service Worker ready");
+        });
+    }
+
+    notifyBtn.onclick = async () => {
+      console.log("🔍 Notification.permission =", Notification.permission);
+
+      if (!("Notification" in window)) {
+        statusEl.innerText = "❌ Notifications are not supported by this browser.";
+        helpEl.style.display = 'block';
+        return;
+      }
+
+      // Already granted
+      if (Notification.permission === "granted") {
+        activateTiffy();
+        return;
+      }
+
+      // Explicitly denied
+      if (Notification.permission === "denied") {
+        statusEl.innerText = "❌ Notifications are blocked in your browser settings.";
+        helpEl.style.display = 'block';
+        return;
+      }
+
+      // Request if permission is default
+      try {
+        const permission = await Notification.requestPermission();
+        console.log("🛎️ Permission requested:", permission);
+
+        if (permission === "granted") {
+          activateTiffy();
+        } else {
+          statusEl.innerText = "🔕 Notifications are disabled. You won't get claim alerts.";
+          helpEl.style.display = 'block';
+        }
+      } catch (err) {
+        statusEl.innerText = "⚠️ Something went wrong while requesting permission.";
+        helpEl.style.display = 'block';
+        console.error("Permission error:", err);
+      }
+    };
+
+    function activateTiffy() {
+      statusEl.innerText = "✅ TiffyAI notifications activated! Watch for key drops.";
+      helpEl.style.display = 'none';
+
+      tiffySound.play().catch(err => console.log("⚠️ Sound blocked:", err));
+      startClaimLoop();
+
+      setTimeout(() => {
+        window.location.href = "/Stamp/";
+      }, 1500);
+    }
+
+    function startClaimLoop() {
+      checkAndNotify();
+      setInterval(checkAndNotify, 600000); // Every 10 mins
+    }
+
+    async function checkAndNotify() {
+      const now = Date.now();
+      const nextClaim = parseInt(localStorage.getItem('nextClaim')) || 0;
+      const blueKeys = parseInt(localStorage.getItem('tiffyBlueKeys') || '0');
+
+      if (now >= nextClaim && Notification.permission === "granted") {
+        const tiffyPrice = await fetchLocalPrice();
+        let message = "";
+
+        if (blueKeys >= 9) {
+          message = `🚀 Tiffy is ${tiffyPrice.trend} at $${tiffyPrice.price}. You have ${blueKeys} Blue Keys! Unlock or convert to Gold!`;
+        } else if (blueKeys > 0) {
+          message = `🔥 Tiffy is ${tiffyPrice.trend} at $${tiffyPrice.price}. You're at ${blueKeys} Blue Keys. Almost there!`;
+        } else {
+          message = `🎁 Claim your FREE Blue Key now! Tiffy is ${tiffyPrice.trend} at $${tiffyPrice.price}. Rewards await...`;
+        }
+
+        navigator.serviceWorker.controller?.postMessage({
+          type: "notify",
+          title: "🔵 TiffyAI Claim Reminder",
+          message,
+          url: "/BLUE-KEY"
+        });
+      }
+    }
+
+    async function fetchLocalPrice() {
+      try {
+        const res = await fetch("https://tiffyai.github.io/TIFFY-Market-Value/price.json");
+        const data = await res.json();
+        const current = parseFloat(data.tiffyToUSD).toFixed(4);
+        const prev = parseFloat(localStorage.getItem("prevTiffyPrice") || current).toFixed(4);
+        localStorage.setItem("prevTiffyPrice", current);
+        const trend = current > prev ? "rising ⬆️" : current < prev ? "falling ⬇️" : "stable 🔁";
+        return { price: current, trend };
+      } catch (e) {
+        return { price: "?.????", trend: "unknown" };
+      }
+    }
+
+    // Optional: Listen for notification click
+    navigator.serviceWorker?.addEventListener("message", event => {
+      if (event.data?.type === 'open') {
+        window.open("/BLUE-KEY", "_blank");
+      }
+    });
+  </script>
+</body>
+</html>
