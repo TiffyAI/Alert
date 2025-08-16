@@ -16,8 +16,8 @@ self.addEventListener('message', event => {
 
     self.registration.showNotification(title, {
       body: message,
-      icon: 'https://tiffyai.github.io/icon.png', // Update if needed
-      badge: 'https://tiffyai.github.io/badge.png', // Optional
+      icon: 'https://tiffyai.github.io/TiffyAI-Token.png', // Update if needed
+      badge: 'https://tiffyai.github.io/TiffyAI-Token.png', // Optional
       data: { url },
       vibrate: [100, 50, 100],
       tag: 'tiffy-reminder'
